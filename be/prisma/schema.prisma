@@ -1,0 +1,61 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String   @id @default(cuid())
+  username         String   @unique
+  email            String   @unique
+  passwordHash     String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // NEW: Track when the password was last changed (for the 90-day expiration policy)
+  passwordChangedAt DateTime @default(now())
+
+  // Relations
+  passwordResets   PasswordReset[]
+  passwordHistory  PasswordHistory[]
+
+  @@map("users")
+}
+
+// Temporary table to hold users until they verify their email
+model PendingUser {
+  id           String   @id @default(cuid())
+  username     String
+  email        String   @unique
+  passwordHash String
+  codeHash     String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  tokenHash String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  codeHash  String   // 2FA code hash
+  used      Boolean  @default(false)
+
+  @@index([userId])
+}
+
+// NEW: Model to store previous passwords to prevent reuse
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  passwordHash String
+  createdAt    DateTime @default(now())
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+
+  @@index([userId])
+}
